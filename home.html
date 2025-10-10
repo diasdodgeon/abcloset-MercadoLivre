@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ABCloset - Catálogo Mercado Livre</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #fafafa;
+    }
+
+    select, input { outline: none; }
+
+    /* 🟡 Banner fixo */
+    #banner-fixo {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      z-index: 50;
+    }
+
+    .espaco-banner { height: 120px; }
+
+    /* 🎬 Animações do modal */
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    @keyframes fadeOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.95); } }
+    .modal-open { animation: fadeIn 0.3s ease forwards; }
+    .modal-close { animation: fadeOut 0.2s ease forwards; }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* 🔍 Modal de Zoom */
+    #zoom-modal {
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(6px);
+    }
+
+    #zoom-close {
+      top: 10px; right: 15px;
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    #zoom-carousel img {
+      touch-action: none;
+      transform-origin: center center;
+      transition: transform 0.25s ease;
+      cursor: grab;
+    }
+
+    #zoom-prev, #zoom-next {
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255,255,255,0.25);
+    }
+
+    #zoom-prev:hover, #zoom-next:hover {
+      background: rgba(255,255,255,0.5);
+    }
+    /* 🌀 Fade suave entre imagens */
+    #zoom-img.fade-in {
+      opacity: 1;
+      transition: opacity 0.4s ease-in;
+    }
+    #zoom-img.fade-out {
+      opacity: 0;
+      transition: opacity 0.3s ease-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center">
+
+  <!-- 🟡 Banner fixo -->
+  <div id="banner-fixo" 
+       class="fixed top-0 left-0 w-full bg-white shadow-lg z-50 cursor-pointer relative flex items-center justify-center">
+    <img src="bannerfixo.jpg" alt="Banner fixo AB Closet" class="w-full h-20 object-cover">
+  </div>
+  <div class="espaco-banner"></div>
+
+  <!-- 🟣 Modal (banner fantasma) -->
+  <div id="modal-info" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div id="modal-conteudo"
+         class="bg-white rounded-3xl shadow-2xl w-11/12 sm:w-4/5 md:w-2/3 lg:w-1/2 relative overflow-hidden transform transition-all">
+      <img src="bannerFantasma.jpg" alt="Informações AB Closet" class="w-full h-auto object-contain">
+      <div class="p-4 flex flex-col sm:flex-row gap-4 justify-around">
+        <button id="fechar-modal" 
+                class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold px-6 py-2 rounded-xl transition">Fechar</button>
+        <a href="https://mercadolivre.com.br/perfil/ABCLOSET" target="_blank"
+           class="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-6 py-2 rounded-xl transition text-center">
+          Visitar Loja no Mercado Livre
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔍 Modal de Zoom -->
+  <div id="zoom-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+    <button id="zoom-close"
+            class="absolute top-3 right-4 text-white text-3xl p-2 rounded-full bg-white/25 hover:bg-white/40 transition z-50">×</button>
+    
+    <button id="prev-img" class="hidden sm:flex absolute left-4 text-white text-4xl bg-black/30 hover:bg-black/50 rounded-full w-10 h-10 items-center justify-center z-50">‹</button>
+    <button id="next-img" class="hidden sm:flex absolute right-4 text-white text-4xl bg-black/30 hover:bg-black/50 rounded-full w-10 h-10 items-center justify-center z-50">›</button>
+
+    <div id="zoom-container" class="relative w-full h-full flex items-center justify-center overflow-hidden touch-none">
+      <img id="zoom-img" src="" class="max-h-[90vh] max-w-full object-contain select-none transition-transform duration-200 opacity-0" />
+    </div>
+  </div>
+
+
+  <!-- Banner principal -->
+  <header class="w-full mt-4">
+    <img src="logo.jpg" alt="Banner AB Closet" class="w-full h-80 object-cover">
+   <!-- <img src="logo.jpg" alt="Banner AB Closet" class="w-full h-60 object-cover">-->
+  </header>
+
+  <h1 class="text-3xl font-semibold my-4 text-gray-800 text-center">
+    Catálogo ABCloset <br> - no Mercado Livre -
+  </h1>
+
+  <section class="flex flex-col sm:flex-row gap-4 items-center justify-center mb-6 w-full max-w-4xl px-4">
+    <h2>O que procura? :</h2>
+    <input id="busca" type="text" placeholder="Buscar produto..." 
+           class="w-full sm:w-1/2 px-4 py-2 rounded-xl border border-gray-300 shadow-sm focus:ring-2 focus:ring-yellow-400 transition" />
+    <h2>Escolha por Categorias:</h2>
+    <select id="filtro" 
+            class="w-full sm:w-1/3 px-4 py-2 rounded-xl border border-gray-300 shadow-sm focus:ring-2 focus:ring-yellow-400 transition">
+      <option value="todos">Todas as categorias</option>
+    </select>
+  </section>
+
+  <main id="produtos" 
+        class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 px-4 w-full max-w-6xl mb-10">
+  </main>
+
+  <script src="produtos.js"></script>
+  <script>
+    const container = document.getElementById("produtos");
+    const filtro = document.getElementById("filtro");
+    const busca = document.getElementById("busca");
+
+    // 🟡 Modal banner
+    const bannerFixo = document.getElementById("banner-fixo");
+    const modal = document.getElementById("modal-info");
+    const modalConteudo = document.getElementById("modal-conteudo");
+    const fecharModal = document.getElementById("fechar-modal");
+    bannerFixo.addEventListener("click", () => {
+      modal.classList.remove("hidden");
+      modalConteudo.classList.add("modal-open");
+    });
+    fecharModal.addEventListener("click", () => modal.classList.add("hidden"));
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); });
+
+      const zoomModal = document.getElementById("zoom-modal");
+      const zoomImg = document.getElementById("zoom-img");
+      const zoomClose = document.getElementById("zoom-close");
+      const zoomPrev = document.getElementById("prev-img");
+      const zoomNext = document.getElementById("next-img");
+      const zoomContainer = document.getElementById("zoom-container");
+
+      let zoomImages = [];
+      let currentIndex = 0;
+      let scale = 1, translateX = 0, translateY = 0;
+      let startX = 0, startY = 0, isDragging = false;
+      let pinchDist = 0;
+
+      function abrirZoom(imagens, index = 0) {
+        zoomImages = imagens;
+        currentIndex = index;
+        trocarImagem(0, true);
+        zoomModal.classList.remove("hidden");
+      }
+
+      function resetZoom() {
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        zoomImg.style.transform = `translate(0px, 0px) scale(1)`;
+      }
+
+      function trocarImagem(dir = 0, primeira = false) {
+        if (zoomImages.length === 0) return;
+        if (!primeira) currentIndex = (currentIndex + dir + zoomImages.length) % zoomImages.length;
+
+        zoomImg.classList.remove("fade-in");
+        zoomImg.classList.add("fade-out");
+
+        setTimeout(() => {
+          zoomImg.src = zoomImages[currentIndex];
+          resetZoom();
+          zoomImg.classList.remove("fade-out");
+          zoomImg.classList.add("fade-in");
+        }, 200);
+      }
+
+      zoomPrev.addEventListener("click", () => trocarImagem(-1));
+      zoomNext.addEventListener("click", () => trocarImagem(1));
+      zoomClose.addEventListener("click", () => zoomModal.classList.add("hidden"));
+      zoomModal.addEventListener("click", e => { if (e.target === zoomModal) zoomModal.classList.add("hidden"); });
+
+      // 🖱️ Duplo clique para zoom/deszoom rápido
+      zoomImg.addEventListener("dblclick", () => {
+        if (scale === 1) {
+          scale = 2;
+        } else {
+          scale = 1;
+          translateX = 0;
+          translateY = 0;
+        }
+        zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+      });
+
+      // 📱 Pinch Zoom e arraste (touch)
+      zoomContainer.addEventListener("touchstart", e => {
+        if (e.touches.length === 1) {
+          isDragging = true;
+          startX = e.touches[0].clientX - translateX;
+          startY = e.touches[0].clientY - translateY;
+        } else if (e.touches.length === 2) {
+          isDragging = false;
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          pinchDist = Math.hypot(dx, dy);
+        }
+      });
+
+      zoomContainer.addEventListener("touchmove", e => {
+        if (e.touches.length === 1 && isDragging && scale > 1) {
+          e.preventDefault();
+          translateX = e.touches[0].clientX - startX;
+          translateY = e.touches[0].clientY - startY;
+          zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        } else if (e.touches.length === 2) {
+          e.preventDefault();
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const newDist = Math.hypot(dx, dy);
+          const factor = newDist / pinchDist;
+          scale = Math.min(4, Math.max(1, scale * factor));
+          pinchDist = newDist;
+          zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        }
+      });
+
+      zoomContainer.addEventListener("touchend", () => { isDragging = false; });
+
+      // 🖱️ Arraste com mouse no desktop
+      zoomContainer.addEventListener("mousedown", e => {
+        if (scale > 1) {
+          isDragging = true;
+          startX = e.clientX - translateX;
+          startY = e.clientY - translateY;
+        }
+      });
+      zoomContainer.addEventListener("mousemove", e => {
+        if (isDragging) {
+          translateX = e.clientX - startX;
+          translateY = e.clientY - startY;
+          zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        }
+      });
+      zoomContainer.addEventListener("mouseup", () => isDragging = false);
+      zoomContainer.addEventListener("mouseleave", () => isDragging = false);
+
+      // 👆 Swipe lateral para trocar imagem
+      let touchStartX = 0;
+      zoomContainer.addEventListener("touchstart", e => {
+        if (e.touches.length === 1 && scale === 1) touchStartX = e.touches[0].clientX;
+      });
+      zoomContainer.addEventListener("touchend", e => {
+        if (scale !== 1) return;
+        const touchEndX = e.changedTouches[0].clientX;
+        if (touchEndX - touchStartX > 60) trocarImagem(-1);
+        else if (touchStartX - touchEndX > 60) trocarImagem(1);
+      });
+    // 🧩 Produtos e carrossel principal
+    function renderizarProdutos(lista) {
+      container.innerHTML = "";
+      if (lista.length === 0) {
+        container.innerHTML = `<p class='text-gray-500 text-center col-span-4'>Nenhum produto encontrado.</p>`;
+        return;
+      }
+
+      lista.forEach(p => {
+        const card = document.createElement("div");
+        card.className = "bg-white shadow-md rounded-2xl overflow-hidden flex flex-col justify-between hover:shadow-xl transition duration-200";
+        const imagens = Array.isArray(p.imagens) ? p.imagens : [p.imagem];
+        const carouselId = "carousel-" + Math.random().toString(36).substring(2, 9);
+
+        card.innerHTML = `
+          <div class="relative group">
+            <div id="${carouselId}" 
+                 class="flex overflow-x-auto scroll-smooth snap-x snap-mandatory no-scrollbar"
+                 onscroll="atualizarIndicadores('${carouselId}')">
+              ${imagens.map((img, i) => `
+                <img src="${img}" alt="${p.nome}" 
+                     class="w-full h-60 object-cover flex-shrink-0 snap-center cursor-zoom-in"
+                     onclick="abrirZoom(${JSON.stringify(imagens).replace(/"/g, '&quot;')}, ${i})">
+              `).join("")}
+            </div>
+
+            <button class="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full w-8 h-8 items-center justify-center shadow"
+                    onclick="scrollCarousel('${carouselId}', -1)">‹</button>
+            <button class="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full w-8 h-8 items-center justify-center shadow"
+                    onclick="scrollCarousel('${carouselId}', 1)">›</button>
+
+            <div id="${carouselId}-dots" class="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+              ${imagens.map((_, i) => `
+                <span class="dot w-2 h-2 rounded-full bg-white/60 transition-all ${i === 0 ? 'scale-125 bg-yellow-400' : ''}"></span>
+              `).join("")}
+            </div>
+          </div>
+
+          <div class="p-4 flex flex-col flex-grow">
+            <h2 class="text-lg font-medium mb-3 text-gray-800">${p.nome}</h2>
+            <a href="${p.link}" target="_blank" 
+               class="mt-auto text-center bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold py-2 rounded-xl transition duration-150">
+               Ir para o produto
+            </a>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function atualizarIndicadores(id) {
+      const el = document.getElementById(id);
+      const dots = document.querySelectorAll(`#${id}-dots .dot`);
+      if (!el || !dots.length) return;
+      const index = Math.round(el.scrollLeft / el.clientWidth);
+      dots.forEach((dot, i) => {
+        dot.classList.toggle("bg-yellow-400", i === index);
+        dot.classList.toggle("scale-125", i === index);
+        dot.classList.toggle("bg-white/60", i !== index);
+      });
+    }
+
+    function scrollCarousel(id, dir) {
+      const el = document.getElementById(id);
+      if (el) el.scrollBy({ left: dir * el.clientWidth, behavior: "smooth" });
+    }
+
+    function atualizarCategorias() {
+      const categorias = ["todas", ...new Set(produtos.map(p => p.categoria || "outros"))];
+      filtro.innerHTML = categorias.map(cat => `<option value="${cat}">${cat.charAt(0).toUpperCase() + cat.slice(1)}</option>`).join("");
+    }
+
+    function filtrar() {
+      const textoBusca = busca.value.toLowerCase();
+      const categoriaSelecionada = filtro.value;
+      const filtrados = produtos.filter(p => {
+        const nomeMatch = p.nome.toLowerCase().includes(textoBusca);
+        const catMatch = categoriaSelecionada === "todas" || p.categoria === categoriaSelecionada;
+        return nomeMatch && catMatch;
+      });
+      renderizarProdutos(filtrados);
+    }
+
+    atualizarCategorias();
+    renderizarProdutos(produtos);
+    busca.addEventListener("input", filtrar);
+    filtro.addEventListener("change", filtrar);
+  </script>
+</body>
+</html>
+
