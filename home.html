@@ -68,6 +68,27 @@
       opacity: 0;
       transition: opacity 0.3s ease-out;
     }
+    .whatsapp-float {
+      position: fixed;
+      width: 60px;
+      height: 60px;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10000;
+      cursor: pointer;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .whatsapp-float img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .whatsapp-float:hover {
+      transform: scale(1.1);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+
   </style>
 </head>
 <body class="min-h-screen flex flex-col items-center">
@@ -362,6 +383,11 @@
     busca.addEventListener("input", filtrar);
     filtro.addEventListener("change", filtrar);
   </script>
+  <!-- Ícone flutuante do WhatsApp -->
+  <a href="https://wa.me/558599355181" target="_blank" class="whatsapp-float" title="Fale conosco no WhatsApp">
+    <img src="whatsapp-icon.png" alt="WhatsApp" />
+  </a>
+
 </body>
 </html>
 
