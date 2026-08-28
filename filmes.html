@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Meu Cinema Móvel</title>
+    <style>
+        /* --- Variáveis e Reset --- */
+        :root {
+            --bg-color: #101010;
+            --bg-card: #1e1e1e;
+            --primary-red: #E50914;
+            --text-main: #ffffff;
+            --text-muted: #b3b3b3;
+            --gap-sm: 8px;
+            --gap-md: 16px;
+            --radius: 8px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding-bottom: 100px; /* Espaço para o player fixo */
+            overflow-x: hidden;
+        }
+
+        /* --- Layout Principal --- */
+        .app-header {
+            padding: var(--gap-md);
+            text-align: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(16,16,16,0) 100%);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .app-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-red);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .container {
+            padding: 0 var(--gap-md);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* --- Seção de Upload (Responsiva) --- */
+        .upload-section {
+            background-color: var(--bg-card);
+            padding: var(--gap-md);
+            border-radius: var(--radius);
+            margin-bottom: var(--gap-md);
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-sm);
+            align-items: center;
+        }
+
+        @media (min-width: 600px) {
+            .upload-section { flex-direction: row; justify-content: center; gap: var(--gap-md); }
+        }
+
+        .file-input-wrapper { position: relative; }
+
+        .btn-labelfile {
+            display: inline-block;
+            background-color: #333;
+            color: var(--text-main);
+            padding: 12px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s;
+            text-align: center;
+            min-width: 160px;
+        }
+
+        .btn-labelfile:active { background-color: #444; }
+        .btn-labelfile.loaded { background-color: #2e7d32; } /* Verde se arquivo carregado */
+
+        #fileInputVideo, #fileInputCover { display: none; }
+
+        .btn-add-master {
+            background-color: var(--primary-red);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 700;
+            transition: transform 0.1s;
+            width: 100%; /* Full width no mobile */
+        }
+
+        @media (min-width: 600px) { .btn-add-master { width: auto; } }
+
+        .btn-add-master:active { transform: scale(0.97); }
+        .btn-add-master:disabled { background-color: #555; cursor: not-allowed; }
+
+        /* --- Galeria de Filmes (Grid Responsivo) --- */
+        .library-title {
+            font-size: 1.1rem;
+            margin-bottom: var(--gap-sm);
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .movie-grid {
+            display: grid;
+            /* Mobile: 2 colunas padrão */
+            grid-template-columns: repeat(2, 1fr); 
+            gap: var(--gap-md);
+        }
+
+        /* Tablets e Telas Médias */
+        @media (min-width: 480px) { grid-template-columns: repeat(3, 1fr); }
+        /* Desktops Pequenos */
+        @media (min-width: 768px) { grid-template-columns: repeat(4, 1fr); }
+        /* Desktops Grandes */
+        @media (min-width: 1024px) { grid-template-columns: repeat(5, 1fr); }
+
+        .status-empty {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* --- Card de Filme (Estilo Pôster) --- */
+        .movie-card {
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 2 / 3; /* Proporção de pôster de cinema */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .movie-card:active { transform: scale(0.98); box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+
+        .movie-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Garante que a capa preencha o card */
+            display: block;
+        }
+
+        .movie-card-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: var(--gap-sm);
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+        }
+
+        .movie-card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
+            /* Truncar texto longo */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* --- Player de Vídeo Fixo (Rodapé) --- */
+        .player-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #000;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.5);
+            z-index: 100;
+            display: none; /* Escondido até dar play */
+            border-top: 2px solid var(--primary-red);
+        }
+
+        .player-container.active { display: block; }
+
+        video {
+            width: 100%;
+            max-height: 50vh; /* Não ocupa mais que meia tela */
+            display: block;
+        }
+
+        .close-player {
+            position: absolute;
+            top: -15px;
+            right: 15px;
+            background-color: var(--primary-red);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 101;
+        }
+        #background{
+            background-image: url(https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ73cCVuh-R-Cre7TDsI2hNGFNro3WsnGeCw94wbqt40tW26t_PnS3kRDY7&s=10);  
+            
+             background-position: center ;
+
+            
+        }
+    </style>
+</head>
+<body>
+
+<header class="app-header">
+    <h1>Pocket Cinema</h1>
+</header>
+
+<div class="container" >
+    <div class="upload-section" id="background">
+        <div class="file-input-wrapper">
+            <label for="fileInputVideo" id="labelVideo" class="btn-labelfile">🎬 Selecionar Vídeo</label>
+            <input type="file" id="fileInputVideo" accept="video/*">
+        </div>
+        
+        <div class="file-input-wrapper">
+            <label for="fileInputCover" id="labelCover" class="btn-labelfile">🖼️ Adicionar Capa</label>
+            <input type="file" id="fileInputCover" accept="image/*">
+        </div>
+
+        <button id="btnAddMaster" class="btn-add-master" disabled>Salvar na Biblioteca</button>
+    </div>
+
+    <h3 class="library-title">Minha Coleção</h3>
+    
+    <div id="movieGrid" class="movie-grid">
+        <div class="status-empty">Sua biblioteca está vazia.<br>Adicione vídeos e capas acima.</div>
+    </div>
+</div>
+
+<div id="playerContainer" class="player-container">
+    <button class="close-player" onclick="fecharPlayer()">✕</button>
+    <video id="videoPlayer" controls playsinline></video>
+</div>
+
+<script>
+    // --- Elementos ---
+    const fileInputVideo = document.getElementById('fileInputVideo');
+    const fileInputCover = document.getElementById('fileInputCover');
+    const btnAddMaster = document.getElementById('btnAddMaster');
+    const labelVideo = document.getElementById('labelVideo');
+    const labelCover = document.getElementById('labelCover');
+    const movieGrid = document.getElementById('movieGrid');
+    const playerContainer = document.getElementById('playerContainer');
+    const videoPlayer = document.getElementById('videoPlayer');
+
+    // Estado local dos arquivos selecionados
+    let tempVideoFile = null;
+    let tempCoverFile = null;
+    let currentVideoObjectUrl = null;
+
+    // --- IndexedDB Config ---
+    let db;
+    const DB_NAME = "PocketCinemaDB";
+    const DB_VERSION = 2; // Aumentado para lidar com nova estrutura
+
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = function(e) {
+        db = e.target.result;
+        // Se já existir a store antiga, deleta para criar a nova com autoIncrement
+        if (db.objectStoreNames.contains("filmes")) {
+            db.deleteObjectStore("filmes");
+        }
+        // Nova Store: { id: 1, nome: "...", videoBlob: Blob, coverBlob: Blob }
+        db.createObjectStore("filmes", { keyPath: "id", autoIncrement: true });
+    };
+
+    request.onsuccess = function(e) {
+        db = e.target.result;
+        carregarBiblioteca();
+    };
+
+    request.onerror = function(e) { console.error("Erro IndexedDB:", e.target.error); };
+
+
+    // --- Gerenciamento de Seleção de Arquivos (UI) ---
+    
+    fileInputVideo.addEventListener('change', function(e) {
+        tempVideoFile = e.target.files[0];
+        if (tempVideoFile) {
+            labelVideo.innerText = "✅ Vídeo Pronto";
+            labelVideo.classList.add('loaded');
+            verificarInputs();
+        }
+    });
+
+    fileInputCover.addEventListener('change', function(e) {
+        tempCoverFile = e.target.files[0];
+        if (tempCoverFile) {
+            labelCover.innerText = "✅ Capa Pronta";
+            labelCover.classList.add('loaded');
+            verificarInputs();
+        }
+    });
+
+    function verificarInputs() {
+        // Habilita o botão final apenas se ambos os arquivos foram escolhidos
+        btnAddMaster.disabled = !(tempVideoFile && tempCoverFile);
+    }
+
+    // --- Ação de Salvar no Banco ---
+    btnAddMaster.addEventListener('click', function() {
+        if (!tempVideoFile || !tempCoverFile) return;
+
+        const tx = db.transaction("filmes", "readwrite");
+        const store = tx.objectStore("filmes");
+
+        const novoFilme = {
+            nome: tempVideoFile.name.replace(/\.[^/.]+$/, ""), // Remove extensão do nome
+            videoBlob: tempVideoFile,
+            coverBlob: tempCoverFile, // Salva o blob da imagem
+            dataAdicionado: new Date()
+        };
+
+        store.add(novoFilme);
+
+        tx.oncomplete = function() {
+            // Limpa o estado
+            tempVideoFile = null;
+            tempCoverFile = null;
+            fileInputVideo.value = "";
+            fileInputCover.value = "";
+            labelVideo.innerText = "🎬 Selecionar Vídeo";
+            labelVideo.classList.remove('loaded');
+            labelCover.innerText = "🖼️ Adicionar Capa";
+            labelCover.classList.remove('loaded');
+            btnAddMaster.disabled = true;
+
+            carregarBiblioteca();
+        };
+
+        tx.onerror = function(e) { alert("Erro ao salvar filme. Verifique o espaço disponível."); };
+    });
+
+
+    // --- Renderização da Galeria ---
+    function carregarBiblioteca() {
+        const tx = db.transaction("filmes", "readonly");
+        const store = tx.objectStore("filmes");
+        const requestAll = store.getAll();
+
+        requestAll.onsuccess = function() {
+            const filmes = requestAll.result;
+            movieGrid.innerHTML = "";
+
+            if (filmes.length === 0) {
+                movieGrid.innerHTML = '<div class="status-empty">Sua biblioteca está vazia.<br>Adicione vídeos e capas acima.</div>';
+                return;
+            }
+            
+            filmes.forEach(filme => {
+                const card = document.createElement('div');
+                card.className = 'movie-card';
+                
+                // Cria URL temporária para a imagem da capa
+                const coverURL = URL.createObjectURL(filme.coverBlob);
+
+                card.innerHTML = `
+                    <img src="${coverURL}" alt="Capa de ${filme.nome}" onload="URL.revokeObjectURL('${coverURL}')">
+                    <div class="movie-card-info">
+                        <div class="movie-card-title">${filme.nome}</div>
+                    </div>
+                `;
+
+                card.onclick = function() {
+                    reproduzirFilme(filme.videoBlob);
+                };
+                
+                movieGrid.appendChild(card);
+            });
+        };
+    }
+
+    // --- Controle do Player ---
+    function reproduzirFilme(videoBlob) {
+        if (currentVideoObjectUrl) {
+            URL.revokeObjectURL(currentVideoObjectUrl);
+        }
+
+        currentVideoObjectUrl = URL.createObjectURL(videoBlob);
+        videoPlayer.src = currentVideoObjectUrl;
+        playerContainer.classList.add('active');
+        videoPlayer.play();
+    }
+
+    function fecharPlayer() {
+        videoPlayer.pause();
+        playerContainer.classList.remove('active');
+        videoPlayer.src = ""; // Libera o vídeo
+    }
+</script>
+
+</body>
+</html>
