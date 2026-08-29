@@ -1,6 +1,6 @@
 {
   "name": "cinema",
-  "icons": [{ "src": "/icone-512.jpg", "sizes": "512x512", "type": "image/jpg" }],
+  "icons": [{ "src": "/android-512x512.png", "sizes": "512x512", "type": "image/png" }],
   "display": "standalone",
   "background_color": "#00bfa5",
   "theme_color": "#00bfa5"
