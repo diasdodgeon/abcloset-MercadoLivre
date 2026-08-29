@@ -1,11 +1,9 @@
 const CACHE_NAME = 'meu-pwa-v1';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/filmes.html',
-  '/sw.js',
-  '/manifest.json',
-  '/android-512x512.png',
-  '/android-192x192.png'
+  './',
+  './filmes.html',
+  './android-192x192.png',
+  './android-512x512.png'
 ];
 
 // Instalação do Service Worker e salvamento dos arquivos no cache
