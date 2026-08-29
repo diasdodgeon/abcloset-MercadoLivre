@@ -1,9 +1,9 @@
 const CACHE_NAME = 'meu-pwa-v1';
 const ASSETS_TO_CACHE = [
   '/',
-  '/index.html',
-  '/styles.css',
-  '/script.js',
+  '/filmes.html',
+  '/sw.js',
+  '/manifest.json',
   '/android-512x512.png',
   '/android-192x192.png'
 ];
