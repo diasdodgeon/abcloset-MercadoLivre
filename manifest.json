@@ -1,8 +1,9 @@
 {
-  "name": "Meu Cinema Móvel",
-  "short_name": "MeuApp",
-  "start_url": "/",
+  "name": "Seu App",
+  "short_name": "App",
+  "start_url": "./filmes.html",
   "display": "standalone",
+  
   "background_color": "#ffffff",
   "theme_color": "#007bff",
   "icons": [
