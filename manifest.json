@@ -1,5 +1,5 @@
 {
-  "name": "cinema",
+  "name": "Meu Cinema Móvel",
   "icons": [{ "src": "/android-512x512.png", "sizes": "512x512", "type": "image/png" }],
   "display": "standalone",
   "background_color": "#00bfa5",
