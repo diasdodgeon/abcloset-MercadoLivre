@@ -1,0 +1,7 @@
+{
+  "name": "cinema",
+  "icons": [{ "src": "/icone-512.jpg", "sizes": "512x512", "type": "image/jpg" }],
+  "display": "standalone",
+  "background_color": "#00bfa5",
+  "theme_color": "#00bfa5"
+}
