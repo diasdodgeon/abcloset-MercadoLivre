@@ -30,7 +30,7 @@
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
 
             const carregador = new THREE.TextureLoader();
-            const urlDaImagem = './360.png';
+            const urlDaImagem = './estrada.png';
 
             carregador.load(urlDaImagem, function (textura) {
                 textura.mapping = THREE.EquirectangularReflectionMapping;
