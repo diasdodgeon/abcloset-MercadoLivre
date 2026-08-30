@@ -38,8 +38,11 @@
 
             const carregador = new THREE.TextureLoader();
             
-            // Exemplo funcional: Imagem equirretangular da suíte de exemplos do Three.js
-            const urlDaImagem = 'https://threejs.org/examples/textures/22944123048_24a959e64b_o.jpg'; 
+            // Opção 1: Paisagem espacial (NASA / Wikimedia - Estável e pública)
+            const urlDaImagem = 'https://upload.wikimedia.org/wikipedia/commons/6/6f/Milky_Way_Arch_360_Ears.jpg';
+
+            // Opção 2: Textura da Terra 360° (Wikimedia)
+            // const urlDaImagem = 'https://upload.wikimedia.org/wikipedia/commons/8/83/Equirectangular_projection_SW.jpg'; 
 
             carregador.load(urlDaImagem, function (textura) {
                 const geometria = new THREE.SphereGeometry(500, 60, 40);
