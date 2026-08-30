@@ -26,19 +26,19 @@
         // 1. CONFIGURAÇÃO DOS ELEMENTOS (Adicione quantos vídeos quiser aqui)
         const listaDeVideos = [
             {
-                src: './animacao1.webm',
+                src: './animacao.webm',
                 largura: 100,
                 altura: 100,
                 posicao: { x: 150, y: 0, z: -300 }
             },
             {
-                src: './animacao2.webm',
+                src: './animacao.webm',
                 largura: 80,
                 altura: 80,
                 posicao: { x: -200, y: 50, z: -250 }
             },
             {
-                src: './passaros.webm',
+                src: './bau2.webm',
                 largura: 120,
                 altura: 60,
                 posicao: { x: 0, y: 150, z: 300 }
@@ -56,7 +56,7 @@
 
             // Carrega o fundo panorâmico
             const carregador = new THREE.TextureLoader();
-            carregador.load('./360.png', function (textura) {
+            carregador.load('./estrada.png', function (textura) {
                 textura.mapping = THREE.EquirectangularReflectionMapping;
                 const geometria = new THREE.SphereGeometry(500, 32, 32); 
                 geometria.scale(-1, 1, 1);
