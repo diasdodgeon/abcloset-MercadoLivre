@@ -3,20 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador de Paisagem 360°</title>
+    <title>Visualizador 360° Avançado</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #000;
-        }
-        #canvas-container {
-            width: 100vw;
-            height: 100vh;
-        }
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        #canvas-container { width: 100vw; height: 100vh; }
     </style>
-    <!-- Importação corrigida (removido o .min duplicado) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
@@ -24,7 +16,9 @@
 
     <script>
         let cena, camera, renderizador, esfera;
-        let olhandoParaBaixo = false, noMouseX = 0, noMouseY = 0, lon = 0, lat = 0, phi = 0, theta = 0;
+        let arrastando = false, noMouseX = 0, noMouseY = 0;
+        let lon = 0, lat = 0, lonAlvo = 0, latAlvo = 0;
+        let phi = 0, theta = 0;
 
         init();
         animate();
@@ -33,56 +27,74 @@
             const container = document.getElementById('canvas-container');
 
             cena = new THREE.Scene();
-
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
 
             const carregador = new THREE.TextureLoader();
-            
-            // Opção 1: Paisagem espacial (NASA / Wikimedia - Estável e pública)
-            //const urlDaImagem = 'https://upload.wikimedia.org/wikipedia/commons/6/6f/Milky_Way_Arch_360_Ears.jpg';
             const urlDaImagem = './360.png';
-            // Opção 2: Textura da Terra 360° (Wikimedia)
-            // const urlDaImagem = 'https://upload.wikimedia.org/wikipedia/commons/8/83/Equirectangular_projection_SW.jpg'; 
 
             carregador.load(urlDaImagem, function (textura) {
+                textura.mapping = THREE.EquirectangularReflectionMapping;
                 const geometria = new THREE.SphereGeometry(500, 60, 40);
                 geometria.scale(-1, 1, 1);
 
                 const material = new THREE.MeshBasicMaterial({ map: textura });
-
                 esfera = new THREE.Mesh(geometria, material);
                 cena.add(esfera);
             });
 
-            renderizador = new THREE.WebGLRenderer();
+            renderizador = new THREE.WebGLRenderer({ antialias: true });
             renderizador.setPixelRatio(window.devicePixelRatio);
             renderizador.setSize(window.innerWidth, window.innerHeight);
             container.appendChild(renderizador.domElement);
 
+            // Eventos de Mouse e Toque
             document.addEventListener('mousedown', onPointerDown);
             document.addEventListener('mousemove', onPointerMove);
             document.addEventListener('mouseup', onPointerUp);
+            document.addEventListener('wheel', onDocumentMouseWheel, { passive: false });
+
+            // Suporte Touch para Mobile
+            document.addEventListener('touchstart', onPointerDown);
+            document.addEventListener('touchmove', onPointerMove);
+            document.addEventListener('touchend', onPointerUp);
+
             window.addEventListener('resize', onWindowResize);
         }
 
+        function getClientPos(event) {
+            if (event.touches && event.touches.length > 0) {
+                return { x: event.touches[0].clientX, y: event.touches[0].clientY };
+            }
+            return { x: event.clientX, y: event.clientY };
+        }
+
         function onPointerDown(event) {
-            olhandoParaBaixo = true;
-            noMouseX = event.clientX;
-            noMouseY = event.clientY;
+            arrastando = true;
+            const pos = getClientPos(event);
+            noMouseX = pos.x;
+            noMouseY = pos.y;
         }
 
         function onPointerMove(event) {
-            if (olhandoParaBaixo === true) {
-                lon = (noMouseX - event.clientX) * 0.1 + lon;
-                lat = (event.clientY - noMouseY) * 0.1 + lat;
-                lat = Math.max(-85, Math.min(85, lat));
-                noMouseX = event.clientX;
-                noMouseY = event.clientY;
+            if (arrastando) {
+                const pos = getClientPos(event);
+                lonAlvo += (noMouseX - pos.x) * 0.1;
+                latAlvo += (pos.y - noMouseY) * 0.1;
+                noMouseX = pos.x;
+                noMouseY = pos.y;
             }
         }
 
         function onPointerUp() {
-            olhandoParaBaixo = false;
+            arrastando = false;
+        }
+
+        // 1. Funcionalidade de Zoom via Scroll
+        function onDocumentMouseWheel(event) {
+            event.preventDefault();
+            camera.fov += event.deltaY * 0.05;
+            camera.fov = Math.max(30, Math.min(100, camera.fov)); // Limites de zoom
+            camera.updateProjectionMatrix();
         }
 
         function onWindowResize() {
@@ -97,7 +109,16 @@
         }
 
         function update() {
-            lat = Math.max(-85, Math.min(85, lat));
+            // 2. Autorotação lenta quando o usuário não estiver arrastando
+            if (!arrastando) {
+                lonAlvo += 0.05;
+            }
+
+            // 3. Suavização (Inércia) do movimento da câmera
+            latAlvo = Math.max(-85, Math.min(85, latAlvo));
+            lon += (lonAlvo - lon) * 0.1;
+            lat += (latAlvo - lat) * 0.1;
+
             phi = THREE.MathUtils.degToRad(90 - lat);
             theta = THREE.MathUtils.degToRad(lon);
 
