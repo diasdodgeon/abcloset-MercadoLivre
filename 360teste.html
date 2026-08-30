@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador 360° com Hotspots</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+
+        /* Estilo do Modal de Informações */
+        #modal {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+            max-width: 300px;
+            z-index: 10;
+        }
+        #modal h2 { margin-top: 0; }
+        #modal button {
+            background: #ff4757;
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- Estrutura do Modal -->
+    <div id="modal">
+        <h2 id="modal-titulo">Título</h2>
+        <p id="modal-descricao">Descrição do local...</p>
+        <button onclick="fecharModal()">Fechar</button>
+    </div>
+
+    <script>
+        let cena, camera, renderizador, esfera;
+        let arrastando = false, noMouseX = 0, noMouseY = 0;
+        let lon = 0, lat = 0, lonAlvo = 0, latAlvo = 0;
+        let phi = 0, theta = 0;
+
+        // Estruturas do Raycaster e Lista de Hotspots
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const listaHotspots = [];
+
+        init();
+        animate();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            cena = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
+
+            const carregador = new THREE.TextureLoader();
+            carregador.load('./360.png', function (textura) {
+                textura.mapping = THREE.EquirectangularReflectionMapping;
+                const geometria = new THREE.SphereGeometry(500, 60, 40);
+                geometria.scale(-1, 1, 1);
+                const material = new THREE.MeshBasicMaterial({ map: textura });
+                esfera = new THREE.Mesh(geometria, material);
+                cena.add(esfera);
+
+                // Criar os marcadores após carregar a cena
+                criarHotspots();
+            });
+
+            renderizador = new THREE.WebGLRenderer({ antialias: true });
+            renderizador.setPixelRatio(window.devicePixelRatio);
+            renderizador.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderizador.domElement);
+
+            // Listeners de interações
+            document.addEventListener('mousedown', onPointerDown);
+            document.addEventListener('mousemove', onPointerMove);
+            document.addEventListener('mouseup', onPointerUp);
+            document.addEventListener('click', onClick); // Evento para clique nos Hotspots
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // Função para adicionar os marcadores no espaço 3D
+        function criarHotspots() {
+            const dadosHotspots = [
+                {
+                    posicao: new THREE.Vector3(200, 50, -400),
+                    titulo: "Ponto de Interesse 1",
+                    descricao: "Esta é uma descrição detalhada sobre a primeira área interativa do cenário."
+                },
+                {
+                    posicao: new THREE.Vector3(-300, -20, -300),
+                    titulo: "Ponto de Interesse 2",
+                    descricao: "Informações adicionais referentes ao segundo elemento encontrado na imagem 360°."
+                }
+            ];
+
+            const geometria = new THREE.SphereGeometry(15, 16, 16);
+            const material = new THREE.MeshBasicMaterial({ color: 0xff0055 });
+
+            dadosHotspots.forEach(dados => {
+                const marcador = new THREE.Mesh(geometria, material);
+                marcador.position.copy(dados.posicao);
+                
+                // Salva os dados do modal dentro do próprio objeto 3D
+                marcador.userData = {
+                    titulo: dados.titulo,
+                    descricao: dados.descricao
+                };
+
+                cena.add(marcador);
+                listaHotspots.push(marcador);
+            });
+        }
+
+        // Lógica de Raycasting para clique
+        function onClick(event) {
+            // Converte a posição do clique do mouse para coordenadas normalizadas (-1 a +1)
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // Verifica intersecções apenas com a lista de marcadores
+            const interseccoes = raycaster.intersectObjects(listaHotspots);
+
+            if (interseccoes.length > 0) {
+                const objetoClicado = interseccoes[0].object;
+                abrirModal(objetoClicado.userData.titulo, objetoClicado.userData.descricao);
+            }
+        }
+
+        function abrirModal(titulo, descricao) {
+            document.getElementById('modal-titulo').innerText = titulo;
+            document.getElementById('modal-descricao').innerText = descricao;
+            document.getElementById('modal').style.display = 'block';
+        }
+
+        function fecharModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        // Controles de navegação da câmera
+        function onPointerDown(event) {
+            arrastando = true;
+            noMouseX = event.clientX;
+            noMouseY = event.clientY;
+        }
+
+        function onPointerMove(event) {
+            if (arrastando) {
+                lonAlvo += (noMouseX - event.clientX) * 0.1;
+                latAlvo += (event.clientY - noMouseY) * 0.1;
+                noMouseX = event.clientX;
+                noMouseY = event.clientY;
+            }
+        }
+
+        function onPointerUp() {
+            arrastando = false;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderizador.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+        }
+
+        function update() {
+            if (!arrastando) lonAlvo += 0.03;
+
+            latAlvo = Math.max(-85, Math.min(85, latAlvo));
+            lon += (lonAlvo - lon) * 0.1;
+            lat += (latAlvo - lat) * 0.1;
+
+            phi = THREE.MathUtils.degToRad(90 - lat);
+            theta = THREE.MathUtils.degToRad(lon);
+
+            const vetorAlvo = new THREE.Vector3();
+            vetorAlvo.x = 500 * Math.sin(phi) * Math.sin(theta);
+            vetorAlvo.y = 500 * Math.cos(phi);
+            vetorAlvo.z = 500 * Math.sin(phi) * Math.cos(theta);
+
+            camera.lookAt(vetorAlvo);
+            renderizador.render(cena, camera);
+        }
+    </script>
+</body>
+</html>
