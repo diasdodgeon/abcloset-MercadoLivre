@@ -3,55 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>360° com Vídeos + Áudio Espacial Externo</title>
+    <title>360° com Vídeos Clicáveis e Áudio Posicional</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; }
-        #canvas-container { width: 100vw; height: 100vh; }
-        
-        #btn-audio {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 100;
-            padding: 12px 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: #fff;
-            border: 1px solid #fff;
-            border-radius: 5px;
-            cursor: pointer;
-            font-family: sans-serif;
-            font-size: 14px;
-        }
+        #canvas-container { width: 100vw; height: 100vh; cursor: pointer; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-    <button id="btn-audio">🔊 Ativar Sons do Cenário</button>
     <div id="canvas-container"></div>
 
     <script>
         let cena, camera, renderizador, esfera;
         let listenerAudio;
         let elementosVideo = [];
-        let sonsPosicionais = []; // Guarda as referências dos áudios para dar .play() depois
         
+        // Raycaster para detectar cliques nos objetos 3D
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
         let arrastando = false, noMouseX = 0, noMouseY = 0;
+        let inicioCliqueX = 0, inicioCliqueY = 0; // Para diferenciar arrasto de clique simples
         let lon = 0, lat = 0, lonAlvo = 0, latAlvo = 0;
         let phi = 0, theta = 0;
 
-        // 1. ADICIONE O CAMINHO DO ÁUDIO INDIVIDUAL PARA CADA VÍDEO
         const listaDeVideos = [
             {
                 src: './animacao.webm',
-                audioSrc: './garota.mp3', // Arquivo de áudio externo
+                audioSrc: './garota.mp3',
                 largura: 100,
                 altura: 100,
-                posicao: { x: 150, y: 0, z: -300 },
-                refDistance: 120
+                posicao: { x: 150, y: 0, z: -300 }
             }
-           // adicionar aqui outros elementos de video
-           //...  ...   ...
+            // Adicione novos objetos de vídeo/áudio aqui
         ];
 
         init();
@@ -63,7 +48,7 @@
             cena = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
 
-            // Configura o ouvinte na câmera
+            // Ouvinte de áudio da câmera
             listenerAudio = new THREE.AudioListener();
             camera.add(listenerAudio);
 
@@ -84,26 +69,17 @@
             renderizador.setSize(window.innerWidth, window.innerHeight);
             container.appendChild(renderizador.domElement);
 
-            // Eventos de entrada
-            document.addEventListener('mousedown', onPointerDown);
-            document.addEventListener('mousemove', onPointerMove);
-            document.addEventListener('mouseup', onPointerUp);
+            // Eventos do Pointer/Mouse/Touch
+            document.addEventListener('pointerdown', onPointerDown);
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
             window.addEventListener('resize', onWindowResize);
-
-            document.addEventListener('touchstart', onPointerDown, { passive: true });
-            document.addEventListener('touchmove', onPointerMove, { passive: true });
-            document.addEventListener('touchend', onPointerUp);
-
-            document.getElementById('btn-audio').addEventListener('click', ativarAudioNavegador);
         }
-
-        let audioAtivadoPeloUsuario = false;
 
         function adicionarElementosAnimados() {
             const carregadorAudio = new THREE.AudioLoader();
 
             listaDeVideos.forEach(config => {
-                // Vídeo mudo (apenas para textura)
                 const video = document.createElement('video');
                 video.src = config.src;
                 video.crossOrigin = 'anonymous';
@@ -131,80 +107,82 @@
                 // Áudio Posicional 3D
                 const somPosicional = new THREE.PositionalAudio(listenerAudio);
 
-                carregadorAudio.load(
-                    config.audioSrc, 
-                    function(buffer) {
-                        somPosicional.setBuffer(buffer);
-                        somPosicional.setLoop(true);
-                        
-                        // Configurações de alcance ajustadas para a escala do seu cenário:
-                        somPosicional.setRefDistance(200);   // Distância onde o som toca a 100% do volume
-                        somPosicional.setMaxDistance(1200);  // Distância máxima onde o som para de ser ouvido
-                        somPosicional.setRolloffFactor(1);   // Suavidade da queda do volume
+                carregadorAudio.load(config.audioSrc, function(buffer) {
+                    somPosicional.setBuffer(buffer);
+                    somPosicional.setLoop(true);
+                    somPosicional.setRefDistance(200);
+                    somPosicional.setMaxDistance(1200);
+                    somPosicional.setRolloffFactor(1);
+                });
 
-                        // Se o usuário já clicou no botão enquanto o áudio baixava, toca imediatamente
-                        if (audioAtivadoPeloUsuario && !somPosicional.isPlaying) {
-                            somPosicional.play();
-                        }
-                    },
-                    undefined,
-                    function(err) {
-                        console.error("Erro ao carregar o arquivo de áudio:", config.audioSrc, err);
-                    }
-                );
-
+                // Anexa o áudio diretamente na Mesh e salva a referência
                 meshVideo.add(somPosicional);
-                sonsPosicionais.push(somPosicional);
+                meshVideo.userData = { som: somPosicional };
 
                 cena.add(meshVideo);
                 elementosVideo.push(meshVideo);
             });
         }
 
-        function ativarAudioNavegador() {
-            audioAtivadoPeloUsuario = true;
+        function detectarCliqueNoVideo(event) {
+            // Converte a posição do clique para coordenadas normalizadas (-1 a +1)
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-            // Desbloqueia o contexto de áudio do navegador
-            if (listenerAudio.context.state === 'suspended') {
-                listenerAudio.context.resume();
-            }
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Testa interseção apenas com os vídeos
+            const intersecoes = raycaster.intersectObjects(elementosVideo);
 
-            // Toca todos os áudios que já foram carregados
-            sonsPosicionais.forEach(som => {
-                if (som.buffer && !som.isPlaying) {
-                    som.play();
+            if (intersecoes.length > 0) {
+                const objetoClicado = intersecoes[0].object;
+                const som = objetoClicado.userData.som;
+
+                // Ativa o contexto de áudio na primeira interação do usuário
+                if (listenerAudio.context.state === 'suspended') {
+                    listenerAudio.context.resume();
                 }
-            });
 
-        document.getElementById('btn-audio').style.display ='none';
-        }
-
-        // Interação e renderização padrão
-        function obterPosicao(event) {
-            if (event.touches && event.touches.length > 0) {
-                return { x: event.touches[0].clientX, y: event.touches[0].clientY };
+                if (som && som.buffer) {
+                    if (som.isPlaying) {
+                        som.pause();
+                    } else {
+                        som.play();
+                    }
+                }
             }
-            return { x: event.clientX, y: event.clientY };
         }
 
         function onPointerDown(event) {
             arrastando = true;
-            const pos = obterPosicao(event);
-            noMouseX = pos.x;
-            noMouseY = pos.y;
+            noMouseX = event.clientX;
+            noMouseY = event.clientY;
+
+            // Posição inicial para validar se foi um clique ou movimento de arrasto
+            inicioCliqueX = event.clientX;
+            inicioCliqueY = event.clientY;
         }
 
         function onPointerMove(event) {
             if (arrastando) {
-                const pos = obterPosicao(event);
-                lonAlvo += (noMouseX - pos.x) * 0.1;
-                latAlvo += (pos.y - noMouseY) * 0.1;
-                noMouseX = pos.x;
-                noMouseY = pos.y;
+                lonAlvo += (noMouseX - event.clientX) * 0.1;
+                latAlvo += (event.clientY - noMouseY) * 0.1;
+                noMouseX = event.clientX;
+                noMouseY = event.clientY;
             }
         }
 
-        function onPointerUp() { arrastando = false; }
+        function onPointerUp(event) {
+            arrastando = false;
+
+            // Se o ponteiro se moveu menos de 5 pixels, considera como um "clique simples"
+            const deltaX = Math.abs(event.clientX - inicioCliqueX);
+            const deltaY = Math.abs(event.clientY - inicioCliqueY);
+
+            if (deltaX < 5 && deltaY < 5) {
+                detectarCliqueNoVideo(event);
+            }
+        }
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
