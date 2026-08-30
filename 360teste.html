@@ -55,41 +55,39 @@
         }
 
         // 2. Criar e posicionar o vídeo WebM na cena 3D
-        function adicionarElementoAnimado() {
-            // Cria um elemento HTML5 de vídeo em memória
-            const video = document.createElement('video');
-            video.src = './animacao.webm'; // Seu arquivo WebM com transparência (Alpha)
-            video.crossOrigin = 'anonymous';
-            video.loop = true;
-            video.muted = true; // Necessário para permitir o autoplay no navegador
-            video.play();
+       function adicionarElementoAnimado() {
+    const video = document.createElement('video');
+    video.src = './animacao_transparente.webm';
+    video.crossOrigin = 'anonymous';
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true; // Garante execução contínua no mobile
+    video.play();
 
-            // Transforma o vídeo em uma textura do Three.js
-            const texturaVideo = new THREE.VideoTexture(video);
+    // 1. Cria a textura de vídeo
+    const texturaVideo = new THREE.VideoTexture(video);
+    texturaVideo.format = THREE.RGBAFormat; // Força a leitura do canal Alpha (transparência)
+    texturaVideo.minFilter = THREE.LinearFilter;
+    texturaVideo.magFilter = THREE.LinearFilter;
 
-            // Cria um plano geométrico para exibir o vídeo
-            const largura = 100;
-            const altura = 100;
-            const planoGeometria = new THREE.PlaneGeometry(largura, altura);
+    const planoGeometria = new THREE.PlaneGeometry(100, 100);
 
-            // Material com transparência ativada
-            const planoMaterial = new THREE.MeshBasicMaterial({
-                map: texturaVideo,
-                transparent: true,
-                side: THREE.DoubleSide
-            });
+    // 2. Configura o material para blend transparente correto
+    const planoMaterial = new THREE.MeshBasicMaterial({
+        map: texturaVideo,
+        transparent: true,
+        alphaTest: 0.05,            // Descarta pixels quase totalmente transparentes
+        blending: THREE.NormalBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false           // Evita conflitos de renderização no espaço 3D
+    });
 
-            const meshVideo = new THREE.Mesh(planoGeometria, planoMaterial);
+    const meshVideo = new THREE.Mesh(planoGeometria, planoMaterial);
+    meshVideo.position.set(150, 0, -300);
+    meshVideo.lookAt(camera.position);
 
-            // Coordenadas para posicionar o elemento no cenário (X, Y, Z)
-            meshVideo.position.set(150, 0, -300);
-
-            // Faz o plano ficar sempre de frente para a câmera (Billboard effect)
-            meshVideo.lookAt(camera.position);
-
-            cena.add(meshVideo);
-        }
-
+    cena.add(meshVideo);
+}
         // --- Controles padrão de rotação e animação ---
         function onPointerDown(event) {
             arrastando = true;
