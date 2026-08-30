@@ -6,7 +6,12 @@
     <title>360° com Vídeos Clicáveis e Áudio Posicional</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; }
-        #canvas-container { width: 100vw; height: 100vh; cursor: pointer; }
+        #canvas-container { 
+            width: 100vw; 
+            height: 100vh; 
+            cursor: pointer; 
+            touch-action: none; /* Evita gestos padrão de scroll do navegador em mobile */
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -19,12 +24,17 @@
         let listenerAudio;
         let elementosVideo = [];
         
-        // Raycaster para detectar cliques nos objetos 3D
+        // Raycaster para interações de clique
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
 
-        let arrastando = false, noMouseX = 0, noMouseY = 0;
-        let inicioCliqueX = 0, inicioCliqueY = 0; // Para diferenciar arrasto de clique simples
+        // Controle de rotação automática
+        let rotacaoAtiva = true; // Permanece true até o primeiro toque/clique
+
+        // Controle de ponteiro e rotação manual
+        let arrastando = false;
+        let noMouseX = 0, noMouseY = 0;
+        let inicioCliqueX = 0, inicioCliqueY = 0;
         let lon = 0, lat = 0, lonAlvo = 0, latAlvo = 0;
         let phi = 0, theta = 0;
 
@@ -36,7 +46,6 @@
                 altura: 100,
                 posicao: { x: 150, y: 0, z: -300 }
             }
-            // Adicione novos objetos de vídeo/áudio aqui
         ];
 
         init();
@@ -48,7 +57,6 @@
             cena = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
 
-            // Ouvinte de áudio da câmera
             listenerAudio = new THREE.AudioListener();
             camera.add(listenerAudio);
 
@@ -69,11 +77,17 @@
             renderizador.setSize(window.innerWidth, window.innerHeight);
             container.appendChild(renderizador.domElement);
 
-            // Eventos do Pointer/Mouse/Touch
-            document.addEventListener('pointerdown', onPointerDown);
-            document.addEventListener('pointermove', onPointerMove);
-            document.addEventListener('pointerup', onPointerUp);
+            registrarEventosPonteiro();
             window.addEventListener('resize', onWindowResize);
+        }
+
+        function registrarEventosPonteiro() {
+            const container = document.getElementById('canvas-container');
+
+            container.addEventListener('pointerdown', onPointerDown);
+            container.addEventListener('pointermove', onPointerMove);
+            container.addEventListener('pointerup', onPointerUp);
+            container.addEventListener('pointercancel', onPointerUp);
         }
 
         function adicionarElementosAnimados() {
@@ -104,7 +118,6 @@
                 const meshVideo = new THREE.Mesh(planoGeometria, planoMaterial);
                 meshVideo.position.set(config.posicao.x, config.posicao.y, config.posicao.z);
 
-                // Áudio Posicional 3D
                 const somPosicional = new THREE.PositionalAudio(listenerAudio);
 
                 carregadorAudio.load(config.audioSrc, function(buffer) {
@@ -115,7 +128,6 @@
                     somPosicional.setRolloffFactor(1);
                 });
 
-                // Anexa o áudio diretamente na Mesh e salva a referência
                 meshVideo.add(somPosicional);
                 meshVideo.userData = { som: somPosicional };
 
@@ -125,20 +137,17 @@
         }
 
         function detectarCliqueNoVideo(event) {
-            // Converte a posição do clique para coordenadas normalizadas (-1 a +1)
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
             raycaster.setFromCamera(mouse, camera);
             
-            // Testa interseção apenas com os vídeos
             const intersecoes = raycaster.intersectObjects(elementosVideo);
 
             if (intersecoes.length > 0) {
                 const objetoClicado = intersecoes[0].object;
                 const som = objetoClicado.userData.som;
 
-                // Ativa o contexto de áudio na primeira interação do usuário
                 if (listenerAudio.context.state === 'suspended') {
                     listenerAudio.context.resume();
                 }
@@ -154,32 +163,40 @@
         }
 
         function onPointerDown(event) {
+            // Desativa permanentemente a rotação automática no primeiro toque/clique
+            rotacaoAtiva = false;
+
             arrastando = true;
             noMouseX = event.clientX;
             noMouseY = event.clientY;
 
-            // Posição inicial para validar se foi um clique ou movimento de arrasto
             inicioCliqueX = event.clientX;
             inicioCliqueY = event.clientY;
         }
 
         function onPointerMove(event) {
-            if (arrastando) {
-                lonAlvo += (noMouseX - event.clientX) * 0.1;
-                latAlvo += (event.clientY - noMouseY) * 0.1;
-                noMouseX = event.clientX;
-                noMouseY = event.clientY;
-            }
+            if (!arrastando) return;
+
+            const deltaX = event.clientX - noMouseX;
+            const deltaY = event.clientY - noMouseY;
+
+            const sensibilidade = 0.25;
+
+            lonAlvo -= deltaX * sensibilidade;
+            latAlvo += deltaY * sensibilidade;
+
+            noMouseX = event.clientX;
+            noMouseY = event.clientY;
         }
 
         function onPointerUp(event) {
+            if (!arrastando) return;
             arrastando = false;
 
-            // Se o ponteiro se moveu menos de 5 pixels, considera como um "clique simples"
-            const deltaX = Math.abs(event.clientX - inicioCliqueX);
-            const deltaY = Math.abs(event.clientY - inicioCliqueY);
+            const distanciaMovidaX = Math.abs(event.clientX - inicioCliqueX);
+            const distanciaMovidaY = Math.abs(event.clientY - inicioCliqueY);
 
-            if (deltaX < 5 && deltaY < 5) {
+            if (distanciaMovidaX < 8 && distanciaMovidaY < 8) {
                 detectarCliqueNoVideo(event);
             }
         }
@@ -196,7 +213,10 @@
         }
 
         function update() {
-            if (!arrastando) lonAlvo += 0.03;
+            // A rotação automática só ocorre enquanto rotacaoAtiva for true
+            if (rotacaoAtiva) {
+                lonAlvo += 0.03;
+            }
 
             latAlvo = Math.max(-85, Math.min(85, latAlvo));
             lon += (lonAlvo - lon) * 0.1;
