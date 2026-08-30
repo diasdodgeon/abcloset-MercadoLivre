@@ -50,14 +50,8 @@
                 posicao: { x: 150, y: 0, z: -300 },
                 refDistance: 120
             }
-           // {
-            //    src: './animacao2.webm',
-            //    audioSrc: './som_fogueira.mp3', // Arquivo de áudio externo
-            //    largura: 80,
-            //    altura: 80,
-           //     posicao: { x: -200, y: 50, z: -250 },
-            //    refDistance: 100
-           // }
+           // adicionar aqui outros elementos de video
+           //...  ...   ...
         ];
 
         init();
@@ -103,18 +97,20 @@
             document.getElementById('btn-audio').addEventListener('click', ativarAudioNavegador);
         }
 
+        let audioAtivadoPeloUsuario = false;
+
         function adicionarElementosAnimados() {
             const carregadorAudio = new THREE.AudioLoader();
 
             listaDeVideos.forEach(config => {
-                // Vídeo mudo (apenas para textura gráfica)
+                // Vídeo mudo (apenas para textura)
                 const video = document.createElement('video');
                 video.src = config.src;
                 video.crossOrigin = 'anonymous';
                 video.loop = true;
                 video.muted = true;
                 video.playsInline = true;
-                video.play().catch(err => console.warn(err));
+                video.play().catch(err => console.warn("Erro ao iniciar vídeo:", err));
 
                 const texturaVideo = new THREE.VideoTexture(video);
                 texturaVideo.format = THREE.RGBAFormat;
@@ -132,18 +128,32 @@
                 const meshVideo = new THREE.Mesh(planoGeometria, planoMaterial);
                 meshVideo.position.set(config.posicao.x, config.posicao.y, config.posicao.z);
 
-                // 2. CRIA O ÁUDIO POSICIONAL EXTERNO
+                // Áudio Posicional 3D
                 const somPosicional = new THREE.PositionalAudio(listenerAudio);
 
-                // Carrega o arquivo MP3/WAV definido na lista
-                carregadorAudio.load(config.audioSrc, function(buffer) {
-                    somPosicional.setBuffer(buffer);
-                    somPosicional.setLoop(true); // Toca em loop continuo
-                    somPosicional.setRefDistance(config.refDistance || 100);
-                    somPosicional.setRolloffFactor(1.5);
-                });
+                carregadorAudio.load(
+                    config.audioSrc, 
+                    function(buffer) {
+                        somPosicional.setBuffer(buffer);
+                        somPosicional.setLoop(true);
+                        
+                        // Configurações de alcance ajustadas para a escala do seu cenário:
+                        somPosicional.setRefDistance(200);   // Distância onde o som toca a 100% do volume
+                        somPosicional.setMaxDistance(1200);  // Distância máxima onde o som para de ser ouvido
+                        somPosicional.setRolloffFactor(1);   // Suavidade da queda do volume
 
-                meshVideo.add(somPosicional); // Prende o som na posição 3D do vídeo
+                        // Se o usuário já clicou no botão enquanto o áudio baixava, toca imediatamente
+                        if (audioAtivadoPeloUsuario && !somPosicional.isPlaying) {
+                            somPosicional.play();
+                        }
+                    },
+                    undefined,
+                    function(err) {
+                        console.error("Erro ao carregar o arquivo de áudio:", config.audioSrc, err);
+                    }
+                );
+
+                meshVideo.add(somPosicional);
                 sonsPosicionais.push(somPosicional);
 
                 cena.add(meshVideo);
@@ -151,19 +161,22 @@
             });
         }
 
-        // Ativa a execução dos áudios externos após permissão do usuário
         function ativarAudioNavegador() {
+            audioAtivadoPeloUsuario = true;
+
+            // Desbloqueia o contexto de áudio do navegador
             if (listenerAudio.context.state === 'suspended') {
                 listenerAudio.context.resume();
             }
 
+            // Toca todos os áudios que já foram carregados
             sonsPosicionais.forEach(som => {
                 if (som.buffer && !som.isPlaying) {
-                    som.play(); // Inicia o som
+                    som.play();
                 }
             });
 
-            document.getElementById('btn-audio').style.display = 'none';
+        document.getElementById('btn-audio').style.display ='none';
         }
 
         // Interação e renderização padrão
