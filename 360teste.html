@@ -55,31 +55,36 @@
         }
 
         // 2. Criar e posicionar o vídeo WebM na cena 3D
-       function adicionarElementoAnimado() {
+        // 1. Função de criação do vídeo com tratamento de erro e flags de alta performance
+function adicionarElementoAnimado() {
     const video = document.createElement('video');
     video.src = './animacao.webm';
     video.crossOrigin = 'anonymous';
     video.loop = true;
     video.muted = true;
-    video.playsInline = true; // Garante execução contínua no mobile
-    video.play();
+    video.playsInline = true;
 
-    // 1. Cria a textura de vídeo
+    // Tratamento de erro para evitar falhas do Service Worker (sw.js)
+    video.onerror = function() {
+        console.error("Erro ao carregar o arquivo de vídeo. Verifique o caminho ou permissões CORS.");
+    };
+
+    video.play().catch(err => console.warn("Autoplay bloqueado pelo navegador:", err));
+
     const texturaVideo = new THREE.VideoTexture(video);
-    texturaVideo.format = THREE.RGBAFormat; // Força a leitura do canal Alpha (transparência)
+    texturaVideo.format = THREE.RGBAFormat;
     texturaVideo.minFilter = THREE.LinearFilter;
     texturaVideo.magFilter = THREE.LinearFilter;
+    texturaVideo.generateMipmaps = false; // DESATIVAR MIPMAPS ECONOMIZA MUITA MEMÓRIA EM VÍDEOS
 
     const planoGeometria = new THREE.PlaneGeometry(100, 100);
 
-    // 2. Configura o material para blend transparente correto
     const planoMaterial = new THREE.MeshBasicMaterial({
         map: texturaVideo,
         transparent: true,
-        alphaTest: 0.05,            // Descarta pixels quase totalmente transparentes
-        blending: THREE.NormalBlending,
-        side: THREE.DoubleSide,
-        depthWrite: false           // Evita conflitos de renderização no espaço 3D
+        alphaTest: 0.05,
+        depthWrite: false,
+        side: THREE.DoubleSide
     });
 
     const meshVideo = new THREE.Mesh(planoGeometria, planoMaterial);
@@ -87,6 +92,43 @@
     meshVideo.lookAt(camera.position);
 
     cena.add(meshVideo);
+}
+
+// 2. Configurações de performance no Init
+function init() {
+    const container = document.getElementById('canvas-container');
+
+    cena = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
+
+    // Otimização: Reduzido o número de segmentos da esfera de (60, 40) para (32, 32)
+    // Isso reduz significativamente o uso de memória e vértices sem perder qualidade visual.
+    const carregador = new THREE.TextureLoader();
+    carregador.load('./360.png', function (textura) {
+        textura.mapping = THREE.EquirectangularReflectionMapping;
+        const geometria = new THREE.SphereGeometry(500, 32, 32); 
+        geometria.scale(-1, 1, 1);
+        const material = new THREE.MeshBasicMaterial({ map: textura });
+        esfera = new THREE.Mesh(geometria, material);
+        cena.add(esfera);
+
+        adicionarElementoAnimado();
+    });
+
+    // Otimização do Renderizador WebGL
+    renderizador = new THREE.WebGLRenderer({ 
+        antialias: false,             // Desativar Antialias se o desempenho for crítico
+        powerPreference: "high-performance" // Solicita à GPU dedicada prioridade de alto desempenho
+    });
+    renderizador.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limita o pixel ratio a 2x no máximo
+    renderizador.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderizador.domElement);
+
+    // Eventos...
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('mousemove', onPointerMove);
+    document.addEventListener('mouseup', onPointerUp);
+    window.addEventListener('resize', onWindowResize);
 }
         // --- Controles padrão de rotação e animação ---
         function onPointerDown(event) {
