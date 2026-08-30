@@ -3,46 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>360° com Múltiplos Vídeos Animados</title>
+    <title>360° com Vídeos + Áudio Espacial Externo</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; }
         #canvas-container { width: 100vw; height: 100vh; }
+        
+        #btn-audio {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            padding: 12px 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            border: 1px solid #fff;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: sans-serif;
+            font-size: 14px;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
+    <button id="btn-audio">🔊 Ativar Sons do Cenário</button>
     <div id="canvas-container"></div>
 
     <script>
         let cena, camera, renderizador, esfera;
-        // Array para armazenar todos os meshes de vídeo criados
+        let listenerAudio;
         let elementosVideo = [];
+        let sonsPosicionais = []; // Guarda as referências dos áudios para dar .play() depois
         
         let arrastando = false, noMouseX = 0, noMouseY = 0;
         let lon = 0, lat = 0, lonAlvo = 0, latAlvo = 0;
         let phi = 0, theta = 0;
 
-        // 1. CONFIGURAÇÃO DOS ELEMENTOS (Adicione quantos vídeos quiser aqui)
+        // 1. ADICIONE O CAMINHO DO ÁUDIO INDIVIDUAL PARA CADA VÍDEO
         const listaDeVideos = [
             {
                 src: './animacao.webm',
+                audioSrc: './garota.mp3', // Arquivo de áudio externo
                 largura: 100,
                 altura: 100,
-                posicao: { x: 150, y: 0, z: -300 }
-            },
-            {
-                src: './animacao.webm',
-                largura: 80,
-                altura: 80,
-                posicao: { x: -200, y: 50, z: -250 }
-            },
-            {
-                src: './bau2.webm',
-                largura: 120,
-                altura: 60,
-                posicao: { x: 0, y: 150, z: 300 }
+                posicao: { x: 150, y: 0, z: -300 },
+                refDistance: 120
             }
+           // {
+            //    src: './animacao2.webm',
+            //    audioSrc: './som_fogueira.mp3', // Arquivo de áudio externo
+            //    largura: 80,
+            //    altura: 80,
+           //     posicao: { x: -200, y: 50, z: -250 },
+            //    refDistance: 100
+           // }
         ];
 
         init();
@@ -54,7 +69,10 @@
             cena = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
 
-            // Carrega o fundo panorâmico
+            // Configura o ouvinte na câmera
+            listenerAudio = new THREE.AudioListener();
+            camera.add(listenerAudio);
+
             const carregador = new THREE.TextureLoader();
             carregador.load('./estrada.png', function (textura) {
                 textura.mapping = THREE.EquirectangularReflectionMapping;
@@ -64,15 +82,10 @@
                 esfera = new THREE.Mesh(geometria, material);
                 cena.add(esfera);
 
-                // Carrega todos os vídeos da lista após carregar o cenário
                 adicionarElementosAnimados();
             });
 
-            // Otimizações do Renderizador WebGL
-            renderizador = new THREE.WebGLRenderer({ 
-                antialias: false,
-                powerPreference: "high-performance"
-            });
+            renderizador = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
             renderizador.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderizador.setSize(window.innerWidth, window.innerHeight);
             container.appendChild(renderizador.domElement);
@@ -83,32 +96,28 @@
             document.addEventListener('mouseup', onPointerUp);
             window.addEventListener('resize', onWindowResize);
 
-            // Suporte para Touch (Mobile/Tablet)
             document.addEventListener('touchstart', onPointerDown, { passive: true });
             document.addEventListener('touchmove', onPointerMove, { passive: true });
             document.addEventListener('touchend', onPointerUp);
+
+            document.getElementById('btn-audio').addEventListener('click', ativarAudioNavegador);
         }
 
-        // 2. FUNÇÃO REATORADA PARA CRIAR VÁRIOS ELEMENTOS
         function adicionarElementosAnimados() {
+            const carregadorAudio = new THREE.AudioLoader();
+
             listaDeVideos.forEach(config => {
+                // Vídeo mudo (apenas para textura gráfica)
                 const video = document.createElement('video');
                 video.src = config.src;
                 video.crossOrigin = 'anonymous';
                 video.loop = true;
                 video.muted = true;
                 video.playsInline = true;
-
-                video.onerror = function() {
-                    console.error(`Erro ao carregar o vídeo: ${config.src}`);
-                };
-
-                video.play().catch(err => console.warn("Autoplay bloqueado pelo navegador:", err));
+                video.play().catch(err => console.warn(err));
 
                 const texturaVideo = new THREE.VideoTexture(video);
                 texturaVideo.format = THREE.RGBAFormat;
-                texturaVideo.minFilter = THREE.LinearFilter;
-                texturaVideo.magFilter = THREE.LinearFilter;
                 texturaVideo.generateMipmaps = false;
 
                 const planoGeometria = new THREE.PlaneGeometry(config.largura, config.altura);
@@ -123,14 +132,41 @@
                 const meshVideo = new THREE.Mesh(planoGeometria, planoMaterial);
                 meshVideo.position.set(config.posicao.x, config.posicao.y, config.posicao.z);
 
-                cena.add(meshVideo);
+                // 2. CRIA O ÁUDIO POSICIONAL EXTERNO
+                const somPosicional = new THREE.PositionalAudio(listenerAudio);
 
-                // Guarda a referência no array global
+                // Carrega o arquivo MP3/WAV definido na lista
+                carregadorAudio.load(config.audioSrc, function(buffer) {
+                    somPosicional.setBuffer(buffer);
+                    somPosicional.setLoop(true); // Toca em loop continuo
+                    somPosicional.setRefDistance(config.refDistance || 100);
+                    somPosicional.setRolloffFactor(1.5);
+                });
+
+                meshVideo.add(somPosicional); // Prende o som na posição 3D do vídeo
+                sonsPosicionais.push(somPosicional);
+
+                cena.add(meshVideo);
                 elementosVideo.push(meshVideo);
             });
         }
 
-        // Interação e utilitários
+        // Ativa a execução dos áudios externos após permissão do usuário
+        function ativarAudioNavegador() {
+            if (listenerAudio.context.state === 'suspended') {
+                listenerAudio.context.resume();
+            }
+
+            sonsPosicionais.forEach(som => {
+                if (som.buffer && !som.isPlaying) {
+                    som.play(); // Inicia o som
+                }
+            });
+
+            document.getElementById('btn-audio').style.display = 'none';
+        }
+
+        // Interação e renderização padrão
         function obterPosicao(event) {
             if (event.touches && event.touches.length > 0) {
                 return { x: event.touches[0].clientX, y: event.touches[0].clientY };
@@ -185,7 +221,6 @@
 
             camera.lookAt(vetorAlvo);
 
-            // 3. REORIENTA TODOS OS VÍDEOS PARA A CÂMERA EM TEMPO REAL
             elementosVideo.forEach(mesh => {
                 mesh.lookAt(camera.position);
             });
