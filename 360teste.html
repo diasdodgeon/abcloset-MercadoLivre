@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>360° com Vídeo Animado (Mundo Vivo)</title>
+    <title>360° com Controles GUI em Tempo Real</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; }
         #canvas-container { width: 100vw; height: 100vh; }
     </style>
+    <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Biblioteca para o Painel de Controles (lil-gui) -->
+    <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.18"></script>
 </head>
 <body>
 
@@ -29,7 +32,6 @@
             cena = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
 
-            // Carrega o fundo panorâmico com otimização de geometria (32, 32)
             const carregador = new THREE.TextureLoader();
             carregador.load('./360.png', function (textura) {
                 textura.mapping = THREE.EquirectangularReflectionMapping;
@@ -42,26 +44,16 @@
                 adicionarElementoAnimado();
             });
 
-            // Otimizações do Renderizador WebGL
-            renderizador = new THREE.WebGLRenderer({ 
-                antialias: false,
-                powerPreference: "high-performance"
-            });
+            renderizador = new THREE.WebGLRenderer({ antialias: false });
             renderizador.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderizador.setSize(window.innerWidth, window.innerHeight);
             container.appendChild(renderizador.domElement);
 
-            // Eventos de entrada
             document.addEventListener('mousedown', onPointerDown);
             document.addEventListener('mousemove', onPointerMove);
             document.addEventListener('mouseup', onPointerUp);
             window.addEventListener('resize', onWindowResize);
-
-            // Suporte para Touch (Mobile/Tablet)
-            document.addEventListener('touchstart', onPointerDown, { passive: true });
-            document.addEventListener('touchmove', onPointerMove, { passive: true });
-            document.addEventListener('touchend', onPointerUp);
-                    }
+        }
 
         function adicionarElementoAnimado() {
             const video = document.createElement('video');
@@ -70,18 +62,10 @@
             video.loop = true;
             video.muted = true;
             video.playsInline = true;
-
-            video.onerror = function() {
-                console.error("Erro ao carregar o arquivo de vídeo. Verifique o caminho ou permissões CORS.");
-            };
-
-            video.play().catch(err => console.warn("Autoplay bloqueado pelo navegador:", err));
+            video.play().catch(err => console.warn(err));
 
             const texturaVideo = new THREE.VideoTexture(video);
             texturaVideo.format = THREE.RGBAFormat;
-            texturaVideo.minFilter = THREE.LinearFilter;
-            texturaVideo.magFilter = THREE.LinearFilter;
-            texturaVideo.generateMipmaps = false;
 
             const planoGeometria = new THREE.PlaneGeometry(100, 100);
             const planoMaterial = new THREE.MeshBasicMaterial({
@@ -96,44 +80,52 @@
             meshVideo.position.set(150, 0, -300);
 
             cena.add(meshVideo);
+
+            // CRIA OS CONTROLES PAINEL GUI
+            criarPainelControle();
         }
 
-        // --- FUNÇÕES DE INTERAÇÃO ATUALIZADAS ---
+        // --- PAINEL DE CONTROLES EM TEMPO REAL ---
+        function criarPainelControle() {
+            const gui = new lil.GUI({ title: 'Ajuste do Vídeo' });
 
-        // Função auxiliar para extrair coordenadas X e Y unificadas
-        function obterPosicao(event) {
-            if (event.touches && event.touches.length > 0) {
-                return {
-                    x: event.touches[0].clientX,
-                    y: event.touches[0].clientY
-                };
-            }
-            return {
-                x: event.clientX,
-                y: event.clientY
+            // Objeto auxiliar para controlar a escala proporcional
+            const configuracoes = {
+                escala: 1,
+                imprimirValores: function() {
+                    console.log(`Posição Final -> X: ${meshVideo.position.x}, Y: ${meshVideo.position.y}, Z: ${meshVideo.position.z}`);
+                    console.log(`Escala Final -> ${meshVideo.scale.x}`);
+                    alert(`Copie do Console (F12):\nposition.set(${meshVideo.position.x}, ${meshVideo.position.y}, ${meshVideo.position.z})\nscale: ${meshVideo.scale.x}`);
+                }
             };
+
+            // Controles de Posição (Min, Max, Passo)
+            const pastaPosicao = gui.addFolder('Posição 3D');
+            pastaPosicao.add(meshVideo.position, 'x', -500, 500, 1).name('Posição X (Esq/Dir)');
+            pastaPosicao.add(meshVideo.position, 'y', -500, 500, 1).name('Posição Y (Cima/Baixo)');
+            pastaPosicao.add(meshVideo.position, 'z', -500, 500, 1).name('Posição Z (Frente/Trás)');
+
+            // Controle de Tamanho (Escala)
+            const pastaTamanho = gui.addFolder('Tamanho');
+            pastaTamanho.add(configuracoes, 'escala', 0.1, 5, 0.1).name('Tamanho (Escala)').onChange(v => {
+                meshVideo.scale.set(v, v, v);
+            });
+
+            // Botão para exibir o código final pronto
+            gui.add(configuracoes, 'imprimirValores').name('📋 Copiar Coordenadas');
         }
 
-        function onPointerDown(event) {
-            arrastando = true;
-            const pos = obterPosicao(event);
-            noMouseX = pos.x;
-            noMouseY = pos.y;
-        }
-
+        // Controles de rotação e animação padrão
+        function onPointerDown(event) { arrastando = true; noMouseX = event.clientX; noMouseY = event.clientY; }
         function onPointerMove(event) {
             if (arrastando) {
-                const pos = obterPosicao(event);
-                lonAlvo += (noMouseX - pos.x) * 0.1;
-                latAlvo += (pos.y - noMouseY) * 0.1;
-                noMouseX = pos.x;
-                noMouseY = pos.y;
+                lonAlvo += (noMouseX - event.clientX) * 0.1;
+                latAlvo += (event.clientY - noMouseY) * 0.1;
+                noMouseX = event.clientX; noMouseY = event.clientY;
             }
         }
+        function onPointerUp() { arrastando = false; }
 
-        function onPointerUp() { 
-            arrastando = false; 
-        }
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -162,10 +154,7 @@
 
             camera.lookAt(vetorAlvo);
 
-            // Reorienta o plano do vídeo para encarar a câmera continuadamente
-            if (meshVideo) {
-                meshVideo.lookAt(camera.position);
-            }
+            if (meshVideo) meshVideo.lookAt(camera.position);
 
             renderizador.render(cena, camera);
         }
