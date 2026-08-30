@@ -3,36 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador 360° com Hotspots</title>
+    <title>360° com Vídeo Animado (Mundo Vivo)</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #000; }
         #canvas-container { width: 100vw; height: 100vh; }
-
-        /* Estilo do Modal de Informações */
-        #modal {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.85);
-            color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
-            max-width: 300px;
-            z-index: 10;
-        }
-        #modal h2 { margin-top: 0; }
-        #modal button {
-            background: #ff4757;
-            border: none;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -40,23 +14,11 @@
 
     <div id="canvas-container"></div>
 
-    <!-- Estrutura do Modal -->
-    <div id="modal">
-        <h2 id="modal-titulo">Título</h2>
-        <p id="modal-descricao">Descrição do local...</p>
-        <button onclick="fecharModal()">Fechar</button>
-    </div>
-
     <script>
         let cena, camera, renderizador, esfera;
         let arrastando = false, noMouseX = 0, noMouseY = 0;
         let lon = 0, lat = 0, lonAlvo = 0, latAlvo = 0;
         let phi = 0, theta = 0;
-
-        // Estruturas do Raycaster e Lista de Hotspots
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        const listaHotspots = [];
 
         init();
         animate();
@@ -67,6 +29,7 @@
             cena = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
 
+            // 1. Carrega o fundo panorâmico estático
             const carregador = new THREE.TextureLoader();
             carregador.load('./360.png', function (textura) {
                 textura.mapping = THREE.EquirectangularReflectionMapping;
@@ -76,8 +39,8 @@
                 esfera = new THREE.Mesh(geometria, material);
                 cena.add(esfera);
 
-                // Criar os marcadores após carregar a cena
-                criarHotspots();
+                // Adiciona o elemento de vídeo animado após carregar o cenário
+                adicionarElementoAnimado();
             });
 
             renderizador = new THREE.WebGLRenderer({ antialias: true });
@@ -85,76 +48,49 @@
             renderizador.setSize(window.innerWidth, window.innerHeight);
             container.appendChild(renderizador.domElement);
 
-            // Listeners de interações
             document.addEventListener('mousedown', onPointerDown);
             document.addEventListener('mousemove', onPointerMove);
             document.addEventListener('mouseup', onPointerUp);
-            document.addEventListener('click', onClick); // Evento para clique nos Hotspots
-
             window.addEventListener('resize', onWindowResize);
         }
 
-        // Função para adicionar os marcadores no espaço 3D
-        function criarHotspots() {
-            const dadosHotspots = [
-                {
-                    posicao: new THREE.Vector3(200, 50, -400),
-                    titulo: "Ponto de Interesse 1",
-                    descricao: "Esta é uma descrição detalhada sobre a primeira área interativa do cenário."
-                },
-                {
-                    posicao: new THREE.Vector3(-300, -20, -300),
-                    titulo: "Ponto de Interesse 2",
-                    descricao: "Informações adicionais referentes ao segundo elemento encontrado na imagem 360°."
-                }
-            ];
+        // 2. Criar e posicionar o vídeo WebM na cena 3D
+        function adicionarElementoAnimado() {
+            // Cria um elemento HTML5 de vídeo em memória
+            const video = document.createElement('video');
+            video.src = './bau2.webm'; // Seu arquivo WebM com transparência (Alpha)
+            video.crossOrigin = 'anonymous';
+            video.loop = true;
+            video.muted = true; // Necessário para permitir o autoplay no navegador
+            video.play();
 
-            const geometria = new THREE.SphereGeometry(15, 16, 16);
-            const material = new THREE.MeshBasicMaterial({ color: 0xff0055 });
+            // Transforma o vídeo em uma textura do Three.js
+            const texturaVideo = new THREE.VideoTexture(video);
 
-            dadosHotspots.forEach(dados => {
-                const marcador = new THREE.Mesh(geometria, material);
-                marcador.position.copy(dados.posicao);
-                
-                // Salva os dados do modal dentro do próprio objeto 3D
-                marcador.userData = {
-                    titulo: dados.titulo,
-                    descricao: dados.descricao
-                };
+            // Cria um plano geométrico para exibir o vídeo
+            const largura = 100;
+            const altura = 100;
+            const planoGeometria = new THREE.PlaneGeometry(largura, altura);
 
-                cena.add(marcador);
-                listaHotspots.push(marcador);
+            // Material com transparência ativada
+            const planoMaterial = new THREE.MeshBasicMaterial({
+                map: texturaVideo,
+                transparent: true,
+                side: THREE.DoubleSide
             });
+
+            const meshVideo = new THREE.Mesh(planoGeometria, planoMaterial);
+
+            // Coordenadas para posicionar o elemento no cenário (X, Y, Z)
+            meshVideo.position.set(150, 0, -300);
+
+            // Faz o plano ficar sempre de frente para a câmera (Billboard effect)
+            meshVideo.lookAt(camera.position);
+
+            cena.add(meshVideo);
         }
 
-        // Lógica de Raycasting para clique
-        function onClick(event) {
-            // Converte a posição do clique do mouse para coordenadas normalizadas (-1 a +1)
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, camera);
-
-            // Verifica intersecções apenas com a lista de marcadores
-            const interseccoes = raycaster.intersectObjects(listaHotspots);
-
-            if (interseccoes.length > 0) {
-                const objetoClicado = interseccoes[0].object;
-                abrirModal(objetoClicado.userData.titulo, objetoClicado.userData.descricao);
-            }
-        }
-
-        function abrirModal(titulo, descricao) {
-            document.getElementById('modal-titulo').innerText = titulo;
-            document.getElementById('modal-descricao').innerText = descricao;
-            document.getElementById('modal').style.display = 'block';
-        }
-
-        function fecharModal() {
-            document.getElementById('modal').style.display = 'none';
-        }
-
-        // Controles de navegação da câmera
+        // --- Controles padrão de rotação e animação ---
         function onPointerDown(event) {
             arrastando = true;
             noMouseX = event.clientX;
@@ -170,9 +106,7 @@
             }
         }
 
-        function onPointerUp() {
-            arrastando = false;
-        }
+        function onPointerUp() { arrastando = false; }
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
