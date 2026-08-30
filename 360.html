@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Paisagem 360°</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+    <!-- Importa a biblioteca Three.js para renderização 3D -->
+    <script src="https://cloudflare.com"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        let cena, camera, renderizador, esfera;
+        let olhandoParaBaixo = false, noMouseX = 0, noMouseY = 0, lon = 0, lat = 0, phi = 0, theta = 0;
+
+        init();
+        animate();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // 1. Criar a Cena
+            cena = new THREE.Scene();
+
+            // 2. Criar a Câmera (Posicionada no centro da esfera: 0, 0, 0)
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
+
+            // 3. Carregar a Imagem Panorâmica
+            const carregador = new THREE.TextureLoader();
+            // SUBSTITUA O LINK ABAIXO PELA SUA IMAGEM DE GRANDE LARGURA (Proporção ideal de 2:1)
+            const urlDaImagem = 'https://threejs.org'; 
+
+            carregador.load(urlDaImagem, function (textura) {
+                // Configura a textura para mapeamento equirretangular
+                textura.mapping = THREE.EquirectangularReflectionMapping;
+
+                // 4. Criar a Geometria da Esfera (Raio de 500, invertida para olhar para dentro)
+                const geometria = new THREE.SphereGeometry(500, 60, 40);
+                // Inverte a escala no eixo X para que o mapeamento fique correto pelo lado de dentro
+                geometria.scale(-1, 1, 1);
+
+                // 5. Criar o Material aplicando a textura da imagem
+                const material = new THREE.MeshBasicMaterial({ map: textura });
+
+                // 6. Criar a Malha (Mesh) e adicionar à cena
+                esfera = new THREE.Mesh(geometria, material);
+                cena.add(esfera);
+            });
+
+            // 7. Configurar o Renderizador WebGL
+            renderizador = new THREE.WebGLRenderer();
+            renderizador.setPixelRatio(window.devicePixelRatio);
+            renderizador.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderizador.domElement);
+
+            // 8. Eventos de Interação com o Mouse/Toque
+            document.addEventListener('mousedown', onPointerDown);
+            document.addEventListener('mousemove', onPointerMove);
+            document.addEventListener('mouseup', onPointerUp);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // --- Controles de Movimentação da Câmera ---
+        function onPointerDown(event) {
+            olhandoParaBaixo = true;
+            noMouseX = event.clientX;
+            noMouseY = event.clientY;
+        }
+
+        function onPointerMove(event) {
+            if (olhandoParaBaixo === true) {
+                lon = (noMouseX - event.clientX) * 0.1 + lon;
+                lat = (event.clientY - noMouseY) * 0.1 + lat;
+                lat = Math.max(-85, Math.min(85, lat)); // Limita o olhar muito para cima/baixo
+                noMouseX = event.clientX;
+                noMouseY = event.clientY;
+            }
+        }
+
+        function onPointerUp() {
+            olhandoParaBaixo = false;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderizador.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Ciclo de Animação e Renderização ---
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+        }
+
+        function update() {
+            // Converte as coordenadas esféricas (latitude/longitude) em um vetor 3D de direção
+            lat = Math.max(- 85, Math.min(85, lat));
+            phi = THREE.MathUtils.degToRad(90 - lat);
+            theta = THREE.MathUtils.degToRad(lon);
+
+            const vetorAlvo = new THREE.Vector3();
+            vetorAlvo.x = 500 * Math.sin(phi) * Math.sin(theta);
+            vetorAlvo.y = 500 * Math.cos(phi);
+            vetorAlvo.z = 500 * Math.sin(phi) * Math.cos(theta);
+
+            camera.lookAt(vetorAlvo);
+            renderizador.render(cena, camera);
+        }
+    </script>
+</body>
+</html>
