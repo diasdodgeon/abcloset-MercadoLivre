@@ -61,7 +61,7 @@
             camera.add(listenerAudio);
 
             const carregador = new THREE.TextureLoader();
-            carregador.load('./bosque.png', function (textura) {
+            carregador.load('./casa.png', function (textura) {
                 textura.mapping = THREE.EquirectangularReflectionMapping;
                 const geometria = new THREE.SphereGeometry(500, 32, 32); 
                 geometria.scale(-1, 1, 1);
